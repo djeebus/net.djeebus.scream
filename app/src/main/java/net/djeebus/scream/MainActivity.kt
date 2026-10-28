@@ -1,9 +1,12 @@
 package net.djeebus.scream
 
 import android.Manifest
+import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
 import android.text.format.DateUtils
@@ -116,7 +119,15 @@ private fun MainScreen(resumeTick: Int) {
 
     // Offer the colors actually in use on upcoming events, plus the saved one.
     val colors = (events.mapNotNull { it.eventColor } + listOfNotNull(alarmColor)).distinct()
-    val matching = events.count { settings.matches(it) }
+    val matchingEvents = events.filter { settings.matches(it) }
+    var alarmSound by remember { mutableStateOf(settings.alarmSound) }
+    val soundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val picked = result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            alarmSound = picked?.toString()
+            settings.alarmSound = alarmSound
+        }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -132,7 +143,7 @@ private fun MainScreen(resumeTick: Int) {
             SetupRow("Full-screen alerts are off, so the alarm won't take over a locked screen.", "Allow") {
                 context.startActivity(
                     Intent(AndroidSettings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
-                        .setData(android.net.Uri.parse("package:${context.packageName}")),
+                        .setData(Uri.parse("package:${context.packageName}")),
                 )
             }
         }
@@ -161,6 +172,31 @@ private fun MainScreen(resumeTick: Int) {
             }
         }
 
+        item { Text("Alarm sound", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
+        item {
+            val soundName = remember(alarmSound) {
+                val uri = alarmSound?.let(Uri::parse)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                runCatching { RingtoneManager.getRingtone(context, uri).getTitle(context) }.getOrNull()
+                    ?: "Default alarm sound"
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(soundName, Modifier.weight(1f))
+                OutlinedButton(onClick = {
+                    soundLauncher.launch(
+                        Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            .putExtra(
+                                RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                alarmSound?.let(Uri::parse) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                            ),
+                    )
+                }) { Text("Change") }
+            }
+        }
+
         item { Text("Alarm before event", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -177,12 +213,13 @@ private fun MainScreen(resumeTick: Int) {
         item {
             Text(
                 if (alarmColor == null) "No color selected: nothing will alarm."
-                else "$matching of ${events.size} events in the next $PREVIEW_DAYS days will alarm.",
+                else if (matchingEvents.isEmpty()) "No events in the next $PREVIEW_DAYS days match this color."
+                else "${matchingEvents.size} events in the next $PREVIEW_DAYS days will alarm:",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-        items(events) { EventRow(it, scary = settings.matches(it), leadMinutes = leadMinutes) }
+        items(matchingEvents) { EventRow(it, leadMinutes = leadMinutes) }
         item { Box(Modifier.size(16.dp)) }
     }
 }
@@ -208,7 +245,7 @@ private fun ColorChip(color: Int, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EventRow(event: CalendarEvent, scary: Boolean, leadMinutes: Int) {
+private fun EventRow(event: CalendarEvent, leadMinutes: Int) {
     val context = LocalContext.current
     val flags = DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY or
         (if (event.allDay) 0 else DateUtils.FORMAT_SHOW_TIME) or DateUtils.FORMAT_ABBREV_ALL
@@ -218,10 +255,7 @@ private fun EventRow(event: CalendarEvent, scary: Boolean, leadMinutes: Int) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(
-                if (scary) MaterialTheme.colorScheme.errorContainer else Color.Transparent,
-                MaterialTheme.shapes.small,
-            )
+            .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.small)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -237,7 +271,7 @@ private fun EventRow(event: CalendarEvent, scary: Boolean, leadMinutes: Int) {
             Text(event.title, style = MaterialTheme.typography.bodyLarge)
             Text(whenText, style = MaterialTheme.typography.bodySmall)
         }
-        if (scary) Column(horizontalAlignment = Alignment.End) {
+        Column(horizontalAlignment = Alignment.End) {
             Text("ALARM", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
             Text(
                 DateUtils.formatDateTime(context, alarmAt, DateUtils.FORMAT_SHOW_TIME),
