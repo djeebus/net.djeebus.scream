@@ -25,12 +25,14 @@ jobs:
         with:
           node-version: 24
 
+      # The preset must match the conventional-changelog-writer major that release-notes-generator bundles
+      # (v14 -> writer 8), so don't bump it to 10.x without also upgrading @semantic-release/release-notes-generator.
       - name: Install semantic-release
         run: >
           npm install --no-save --no-package-lock
           semantic-release@25.0.9
           @semantic-release/exec@7.1.0
-          conventional-changelog-conventionalcommits@10.4.1
+          conventional-changelog-conventionalcommits@9.3.1
 
       # Decides the next version from conventional commits. If nothing is releasable it does nothing;
       # otherwise it builds the APK (build-release.sh), tags, and publishes the release with the APK attached.
