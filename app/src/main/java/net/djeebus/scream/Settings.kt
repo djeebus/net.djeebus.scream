@@ -19,6 +19,15 @@ class Settings(context: Context) {
         get() = prefs.getInt(KEY_LEAD, DEFAULT_LEAD_MINUTES)
         set(value) = prefs.edit().putInt(KEY_LEAD, value).apply()
 
+    // Ringtone chosen via the system picker; null means the phone's default alarm sound.
+    var alarmSound: String?
+        get() = prefs.getString(KEY_SOUND, null)
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) remove(KEY_SOUND) else putString(KEY_SOUND, value)
+            }.apply()
+        }
+
     // "eventId:begin" keys of alarms currently registered with AlarmManager, so they can be cancelled.
     var scheduledKeys: Set<String>
         get() = prefs.getStringSet(KEY_SCHEDULED, emptySet()).orEmpty()
@@ -33,6 +42,7 @@ class Settings(context: Context) {
         const val DEFAULT_LEAD_MINUTES = 5
         private const val KEY_COLOR = "alarm_color"
         private const val KEY_LEAD = "lead_minutes"
+        private const val KEY_SOUND = "alarm_sound"
         private const val KEY_SCHEDULED = "scheduled"
     }
 }

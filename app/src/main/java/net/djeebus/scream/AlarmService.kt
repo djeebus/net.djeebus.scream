@@ -13,6 +13,7 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -67,10 +68,16 @@ class AlarmService : Service() {
         originalVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
         audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
 
-        val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
+        val default = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        player = MediaPlayer().apply {
+        val chosen = Settings(this).alarmSound?.let(Uri::parse)
+        // The chosen sound may have been deleted since; an alarm must never be silent, so fall back.
+        player = chosen?.let { runCatching { createPlayer(it) }.getOrNull() } ?: createPlayer(default)
+    }
+
+    private fun createPlayer(uri: Uri) = MediaPlayer().apply {
+        try {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -81,6 +88,9 @@ class AlarmService : Service() {
             isLooping = true
             prepare()
             start()
+        } catch (e: Exception) {
+            release()
+            throw e
         }
     }
 
