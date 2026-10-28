@@ -1,0 +1,33 @@
+name: Release APK
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs Java, Gradle and the Android SDK command-line tools pinned in mise.toml.
+      - uses: jdx/mise-action@v2
+
+      - name: Install Android SDK packages
+        run: |
+          yes | mise x -- sdkmanager --licenses > /dev/null || true
+          mise x -- sdkmanager "platforms;android-36" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+
+      - name: Build APK
+        run: mise x -- ./gradlew :app:assembleDebug
+
+      - name: Attach APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "net.djeebus.scream-${TAG}.apk"
+          gh release upload "$TAG" "net.djeebus.scream-${TAG}.apk" --clobber
