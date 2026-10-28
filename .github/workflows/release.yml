@@ -18,21 +18,13 @@ jobs:
         with:
           fetch-depth: 0 # semantic-release needs the full history and tags
 
-      # Installs Java, Gradle and the Android SDK command-line tools pinned in mise.toml.
+      # Installs the tools pinned in mise.toml: Java, Gradle, the Android SDK tools, Node and npm.
       - uses: jdx/mise-action@v2
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      # The preset must match the conventional-changelog-writer major that release-notes-generator bundles
-      # (v14 -> writer 8), so don't bump it to 10.x without also upgrading @semantic-release/release-notes-generator.
-      - name: Install semantic-release
-        run: >
-          npm install --no-save --no-package-lock
-          semantic-release@25.0.9
-          @semantic-release/exec@7.1.0
-          conventional-changelog-conventionalcommits@9.3.1
+      # Exact, locked versions from package.json / package-lock.json. When bumping semantic-release, keep
+      # conventional-changelog-conventionalcommits on the major matching the writer its notes generator bundles.
+      - name: Install release tooling
+        run: mise x -- npm ci --ignore-scripts
 
       # Decides the next version from conventional commits. If nothing is releasable it does nothing;
       # otherwise it builds the APK (build-release.sh), tags, and publishes the release with the APK attached.
@@ -43,4 +35,4 @@ jobs:
           SCREAM_KEYSTORE_PASSWORD: ${{ secrets.SCREAM_KEYSTORE_PASSWORD }}
           SCREAM_KEY_ALIAS: ${{ secrets.SCREAM_KEY_ALIAS }}
           SCREAM_KEY_PASSWORD: ${{ secrets.SCREAM_KEY_PASSWORD }}
-        run: npx semantic-release
+        run: mise x -- npx semantic-release

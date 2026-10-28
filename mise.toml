@@ -2,3 +2,5 @@
 java = "temurin-21"
 gradle = "9.8.2"
 android-sdk = "latest"
+node = "24.22.2"
+npm = "11.19.1"
