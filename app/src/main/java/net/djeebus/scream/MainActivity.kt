@@ -109,7 +109,10 @@ private fun MainScreen(resumeTick: Int) {
     var leadMinutes by remember { mutableIntStateOf(settings.leadMinutes) }
 
     // Keep the registered alarms in sync with what the preview shows.
-    LaunchedEffect(resumeTick, alarmColor, leadMinutes) { AlarmScheduler.reschedule(context) }
+    LaunchedEffect(resumeTick, alarmColor, leadMinutes) {
+        runCatching { AlarmScheduler.reschedule(context) }
+            .onFailure { android.util.Log.e("Scream", "Could not schedule alarms", it) }
+    }
 
     // Offer the colors actually in use on upcoming events, plus the saved one.
     val colors = (events.mapNotNull { it.eventColor } + listOfNotNull(alarmColor)).distinct()
