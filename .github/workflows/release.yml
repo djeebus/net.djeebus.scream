@@ -1,52 +1,44 @@
-name: Release APK
+name: Release
 
 on:
-  release:
-    types: [published]
-  workflow_call:
-    inputs:
-      tag:
-        required: true
-        type: string
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
+# One release at a time, so two quick merges can't race for the same version.
+concurrency: release
+
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          fetch-depth: 0 # semantic-release needs the full history and tags
 
       # Installs Java, Gradle and the Android SDK command-line tools pinned in mise.toml.
       - uses: jdx/mise-action@v2
 
-      - name: Install Android SDK packages
-        run: |
-          yes | mise x -- sdkmanager --licenses > /dev/null || true
-          mise x -- sdkmanager "platforms;android-36" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
-      - name: Decode signing key
+      - name: Install semantic-release
+        run: >
+          npm install --no-save --no-package-lock
+          semantic-release@25.0.9
+          @semantic-release/exec@7.1.0
+          conventional-changelog-conventionalcommits@10.4.1
+
+      # Decides the next version from conventional commits. If nothing is releasable it does nothing;
+      # otherwise it builds the APK (build-release.sh), tags, and publishes the release with the APK attached.
+      - name: Release
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           KEYSTORE_BASE64: ${{ secrets.SCREAM_KEYSTORE_BASE64 }}
-        run: |
-          test -n "$KEYSTORE_BASE64" || { echo "SCREAM_KEYSTORE_BASE64 secret is not set"; exit 1; }
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/scream-release.jks"
-
-      - name: Build APK
-        env:
-          SCREAM_KEYSTORE_FILE: ${{ runner.temp }}/scream-release.jks
           SCREAM_KEYSTORE_PASSWORD: ${{ secrets.SCREAM_KEYSTORE_PASSWORD }}
           SCREAM_KEY_ALIAS: ${{ secrets.SCREAM_KEY_ALIAS }}
           SCREAM_KEY_PASSWORD: ${{ secrets.SCREAM_KEY_PASSWORD }}
-        run: mise x -- ./gradlew :app:assembleRelease
-
-      - name: Attach APK to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag || github.event.release.tag_name }}
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk "net.djeebus.scream-${TAG}.apk"
-          gh release upload "$TAG" "net.djeebus.scream-${TAG}.apk" --clobber
+        run: npx semantic-release

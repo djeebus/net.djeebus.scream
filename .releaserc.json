@@ -1,0 +1,21 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    ["@semantic-release/commit-analyzer", {
+      "preset": "conventionalcommits",
+      "releaseRules": [{ "breaking": true, "release": "minor" }]
+    }],
+    ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits" }],
+    ["@semantic-release/exec", { "prepareCmd": ".github/scripts/build-release.sh ${nextRelease.version}" }],
+    ["@semantic-release/github", {
+      "assets": [{
+        "path": "app/build/outputs/apk/release/app-release.apk",
+        "name": "net.djeebus.scream-v${nextRelease.version}.apk"
+      }],
+      "successComment": false,
+      "failComment": false,
+      "releasedLabels": false
+    }]
+  ]
+}
