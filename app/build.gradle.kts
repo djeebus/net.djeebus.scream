@@ -22,8 +22,11 @@ android {
         applicationId = "net.djeebus.scream"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        // release-please rewrites the marked line below on each release; versionCode follows from it.
+        versionName = "0.1.1" // x-release-please-version
+        versionCode = versionName!!.split(".").let { (major, minor, patch) ->
+            major.toInt() * 10_000 + minor.toInt() * 100 + patch.toInt()
+        }
     }
 
     signingConfigs {
